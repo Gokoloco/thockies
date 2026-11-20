@@ -537,7 +537,7 @@
     const lb = getLB(); lb.push({ id: myEntry, name, score: score(), ms: Math.round(S.elapsed), date: Date.now() });
     lb.sort((a, b) => b.score - a.score || a.ms - b.ms); putLB(lb.slice(0, 50));
     S.saved = true; save(); $('bForm').style.display = 'none'; play('unlock', 1.1, .8); buzz([20, 30, 20]);
-    const body = { name, score: Math.min(20000, Math.max(0, score())), clicks: Math.min(600, Math.max(0, S.total)), secs: Math.min(3600, Math.max(15, Math.round(S.elapsed / 1000))) };
+    const body = { name, score: Math.min(100000, Math.max(0, score())), clicks: Math.min(600, Math.max(0, S.total)), secs: Math.min(3600, Math.max(15, Math.round(S.elapsed / 1000))) };
     try {
       const r = await sb('scores', { method: 'POST', headers: { Prefer: 'return=representation' }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(r.status);
