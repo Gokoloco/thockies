@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Thockies</title>
+<link rel="icon" type="image/png" href="assets/icon.png">
+<style>
+  :root { --bg1:#2b1b4d; --bg2:#12092a; --accent:#ffd34d; --ink:#fff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; touch-action:none; }
+  html,body { overscroll-behavior:none; -webkit-text-size-adjust:100%; }
+  #board, #board * { touch-action:pan-y; }
+  #zoomfix { position:fixed; left:50%; bottom:14px; transform:translateX(-50%); z-index:99; display:none; padding:10px 16px; border-radius:14px; background:var(--accent); color:#3a2500; font-weight:900; font-size:15px; box-shadow:0 6px 18px rgba(0,0,0,.45); touch-action:manipulation; }
+  #zoomfix.on { display:block; }
+  html,body { margin:0; height:100%; background:radial-gradient(120% 90% at 50% 0%, var(--bg1), var(--bg2)); color:var(--ink);
+    font-family:ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",sans-serif; overflow:hidden; }
+  #app { position:relative; height:100%; max-width:560px; margin:0 auto; display:flex; flex-direction:column; padding:12px 16px 12px; }
+  h1.logo { margin:10px 0 0; line-height:0; text-align:center; }
+  h1.logo img { width:min(46vw,190px); height:auto; border-radius:22%; filter:drop-shadow(0 6px 14px rgba(0,0,0,.45)); }
+  h1 { margin:18px 0 2px; font-size:34px; letter-spacing:1px; text-align:center; }
+  .sub { text-align:center; opacity:.75; margin:0 0 14px; font-size:15px; }
+  .screen { display:none; flex:1; flex-direction:column; }
+  .screen.on { display:flex; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:6px; }
+  .card { background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.14); border-radius:20px; padding:10px 6px 8px; text-align:center; cursor:pointer; transition:transform .12s, background .12s; }
+  .card:active { transform:scale(.94); }
+  .card.sel { border-color:var(--accent); background:rgba(255,211,77,.18); }
+  .card.locked { cursor:default; opacity:.9; }
+  .card img { width:100%; aspect-ratio:1; object-fit:contain; display:block; pointer-events:none; }
+  .card.locked img { filter:brightness(0) opacity(.55); }
+  .card .nm { font-weight:700; font-size:14px; margin-top:4px; }
+  .lockrow { opacity:.7; font-size:12px; }
+  .btn { background:var(--accent); color:#3a2500; border:0; border-radius:16px; font-weight:800; font-size:18px; padding:14px 22px; cursor:pointer; box-shadow:0 5px 0 #b88a00; }
+  .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #b88a00; }
+  .btn[disabled] { opacity:.4; }
+  .btn.ghost { background:rgba(255,255,255,.12); color:#fff; box-shadow:0 5px 0 rgba(0,0,0,.35); font-size:15px; padding:10px 16px; }
+  .center { margin:auto 0 24px; display:flex; flex-direction:column; align-items:center; gap:12px; }
+  /* play */
+  .top { display:flex; justify-content:space-between; align-items:center; padding-top:12px; gap:8px; }
+  .goal { font-weight:800; font-size:15px; line-height:1.25; flex:1; }
+  .goal span { color:var(--accent); }
+  .nextrow { display:flex; align-items:center; gap:12px; margin-top:8px; }
+  .nextbox { width:56px; height:56px; flex:none; border-radius:16px; background:rgba(255,255,255,.1); border:2px dashed rgba(255,255,255,.3); padding:4px; }
+  .nextbox img { width:100%; height:100%; object-fit:contain; filter:brightness(0) opacity(.6); }
+  .nextbox.done { border-style:solid; border-color:var(--accent); }
+  .nextbox.final { border-style:solid; border-color:var(--accent); }
+  .nextbox.final img { display:none; }
+  .nextbox.final::after { content:'🏁'; display:flex; align-items:center; justify-content:center; height:100%; font-size:30px; }
+  .nextbox.done img { filter:none; }
+  .instr { text-align:center; font-weight:800; font-size:16px; margin:10px 0 0; padding:8px 12px; border-radius:14px; background:rgba(255,211,77,.16); color:var(--accent); }
+  .bigcount { text-align:center; margin-top:6px; line-height:1; }
+  .bigcount span { display:inline-block; font-size:72px; font-weight:900; text-shadow:0 4px 0 rgba(0,0,0,.4); }
+  .bigcount small { display:block; font-size:12px; font-weight:700; opacity:.7; letter-spacing:2px; }
+  .bigcount span.bump { animation:bump .12s ease-out; }
+  @keyframes bump { 0% { transform:scale(1); } 40% { transform:scale(1.22); } 100% { transform:scale(1); } }
+  input { -webkit-user-select:text; user-select:text; touch-action:auto; font-size:16px; }
+  .stats { display:flex; gap:8px; margin-top:8px; }
+  .pill { flex:1; background:rgba(255,255,255,.09); border-radius:14px; padding:6px 8px; text-align:center; min-width:0; }
+  .pill b { display:block; font-size:20px; font-weight:900; line-height:1.1; font-variant-numeric:tabular-nums; }
+  .pill small { font-size:10px; letter-spacing:1.5px; opacity:.65; font-weight:700; }
+  .spd { height:8px; background:rgba(255,255,255,.14); border-radius:6px; overflow:hidden; margin-top:6px; }
+  .spd i { display:block; height:100%; width:100%; background:#58d68d; }
+  .spd.low i { background:#ff5a5a; }
+  .bar { height:16px; background:rgba(255,255,255,.12); border-radius:10px; overflow:hidden; margin:10px 0 4px; }
+  .bar > i { display:block; height:100%; width:0; background:linear-gradient(90deg,#ffd34d,#ff7ab8); transition:width .15s; }
+  .barlbl { font-size:13px; opacity:.8; text-align:center; }
+  #stage { flex:1; position:relative; display:grid; gap:10px; justify-content:center; align-content:stretch; min-height:0; padding-top:18px; }
+  .key { position:relative; width:100%; height:100%; min-height:0; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:transform .06s ease-out; transform-origin:50% 90%; }
+  .key img { width:100%; height:100%; object-fit:contain; pointer-events:none; filter:drop-shadow(0 14px 0 rgba(0,0,0,.28)); transition:filter .06s; }
+  .key.down { transform:scale(.9,.84); }
+  .key.down img { filter:drop-shadow(0 4px 0 rgba(0,0,0,.28)); }
+  .chip { width:56px; height:56px; border-radius:16px; background:rgba(255,255,255,.1); border:2px solid rgba(255,255,255,.14); padding:3px; cursor:pointer; }
+  .chip.sel { border-color:var(--accent); background:rgba(255,211,77,.2); }
+  .chip.lock { opacity:.5; cursor:default; }
+  .chip img { width:100%; height:100%; object-fit:contain; pointer-events:none; }
+  .chip.lock img { filter:brightness(0) opacity(.6); }
+  .badge { position:absolute; top:-6px; left:50%; transform:translateX(-50%); padding:2px 9px; border-radius:12px; font-weight:900; font-size:14px; background:rgba(255,255,255,.2); color:#fff; pointer-events:none; white-space:nowrap; z-index:2; }
+  .badge.got { background:rgba(88,214,141,.45); }
+  .badge.best { background:var(--accent); color:#3a2500; animation:pulse .5s infinite alternate; }
+  @keyframes pulse { to { transform:translateX(-50%) scale(1.15); } }
+  .hint { text-align:center; font-size:14px; font-weight:700; color:#ffe59a; min-height:20px; padding:6px 4px 2px; }
+  .combo { position:absolute; top:6px; left:0; right:0; text-align:center; font-weight:900; font-size:22px; color:var(--accent); text-shadow:0 2px 0 rgba(0,0,0,.4); pointer-events:none; opacity:0; transition:opacity .15s; }
+  .combo.on { opacity:1; }
+  .fx { position:fixed; pointer-events:none; font-weight:900; font-size:26px; color:#fff; text-shadow:0 2px 0 rgba(0,0,0,.45); animation:fly .8s ease-out forwards; z-index:5; }
+  @keyframes fly { to { transform:translateY(-90px); opacity:0; } }
+  .pt { position:fixed; width:10px; height:10px; border-radius:3px; pointer-events:none; z-index:5; }
+  @keyframes shake { 0%,100%{transform:translate(0)} 20%{transform:translate(-6px,3px)} 40%{transform:translate(5px,-4px)} 60%{transform:translate(-4px,-2px)} 80%{transform:translate(3px,4px)} }
+  .shake { animation:shake .35s; }
+  #flash { position:fixed; inset:0; background:radial-gradient(circle,rgba(255,40,40,.05),rgba(255,40,40,.55)); pointer-events:none; opacity:0; z-index:8; }
+  #flash.on { animation:fl .6s ease-out; }
+  @keyframes fl { 0% { opacity:1; } 100% { opacity:0; } }
+  .slow { position:fixed; left:0; right:0; top:34%; text-align:center; font-weight:900; font-size:34px; color:#ff6b6b; text-shadow:0 3px 0 rgba(0,0,0,.5); pointer-events:none; z-index:9; animation:slowfx 1s ease-out forwards; }
+  @keyframes slowfx { 0% { transform:scale(.4); opacity:0; } 20% { transform:scale(1.15); opacity:1; } 100% { transform:translateY(-40px) scale(1); opacity:0; } }
+  #board { position:fixed; inset:0; background:rgb(14,8,32); display:none; z-index:12; overflow-y:auto; padding:18px 16px 30px; }
+  #board.on { display:block; }
+  #board .in { max-width:480px; margin:0 auto; }
+  #board h2 { text-align:center; margin:6px 0 10px; font-size:28px; color:var(--accent); }
+  .brk { background:rgba(255,255,255,.08); border-radius:16px; padding:10px 14px; margin-bottom:12px; }
+  .brk div { display:flex; justify-content:space-between; padding:3px 0; font-size:15px; }
+  .brk .tot { border-top:2px solid rgba(255,255,255,.2); margin-top:6px; padding-top:8px; font-size:22px; font-weight:900; color:var(--accent); }
+  .nameRow { display:flex; gap:8px; margin-bottom:14px; }
+  .nameRow input { flex:1; min-width:0; font:inherit; font-size:18px; padding:12px 14px; border-radius:14px; border:2px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1); color:#fff; }
+  .nameRow .btn { padding:12px 16px; font-size:16px; }
+  #bList { list-style:none; margin:0 0 14px; padding:0; }
+  #bList li { display:flex; gap:10px; align-items:center; padding:9px 12px; border-radius:12px; background:rgba(255,255,255,.07); margin-bottom:6px; font-size:16px; }
+  #bList li.me { background:rgba(255,211,77,.22); border:2px solid var(--accent); }
+  #bList .rk { width:26px; font-weight:900; opacity:.8; }
+  #bList .nm { flex:1; font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #bList .tm { opacity:.65; font-size:13px; }
+  #bList .sc { font-weight:900; font-variant-numeric:tabular-nums; }
+  .empty { text-align:center; opacity:.7; padding:14px; }
+  .brow { display:flex; gap:10px; justify-content:center; }
+  #unlock { position:fixed; inset:0; background:rgba(10,5,25,.88); display:none; z-index:10; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; padding:20px; }
+  #unlock.on { display:flex; }
+  #unlock img { width:min(60vw,260px); animation:pop .6s cubic-bezier(.2,1.6,.4,1); filter:drop-shadow(0 0 30px rgba(255,211,77,.8)); }
+  @keyframes pop { from { transform:scale(0) rotate(-20deg); } to { transform:scale(1) rotate(0); } }
+  #unlock h2 { margin:6px 0 0; font-size:30px; color:var(--accent); }
+  #unlock p { margin:0 0 10px; opacity:.85; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <section class="screen on" id="sPick">
+    <h1 class="logo"><img src="assets/logo.png" alt="Thockies" width="180" height="180"></h1>
+    <p class="sub">Pick your first Thockie, then click it 50 times to unlock a friend</p>
+    <div class="grid" id="startGrid"></div>
+    <p class="sub" style="margin-top:18px">Locked — keep clicking to unlock</p>
+    <div class="grid" id="lockGrid"></div>
+    <div class="center"><button class="btn" id="goBtn" disabled>Start clicking</button><button class="btn ghost" id="lbBtn2">🏆 Leaderboard</button></div>
+  </section>
+
+  <section class="screen" id="sPlay">
+    <div class="top">
+      <div class="goal" id="goal"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn ghost" id="lbBtn">🏆</button>
+        <button class="btn ghost" id="soundBtn">🔊</button>
+        <button class="btn ghost" id="resetBtn">Reset</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="pill"><b id="time">0:00.0</b><small>TIME</small></div>
+      <div class="pill"><b id="score">0</b><small>POINTS</small></div>
+      <div class="pill"><b id="spdTxt">SPEED</b><small>KEEP IT UP!</small><div class="spd" id="spd"><i id="spdFill"></i></div></div>
+    </div>
+    <div class="nextrow">
+      <div class="nextbox"><img id="nextImg" alt=""></div>
+      <div style="flex:1;min-width:0">
+        <div class="bar"><i id="barFill"></i></div>
+        <div class="barlbl" id="barLbl"></div>
+      </div>
+    </div>
+    <div class="bigcount"><span id="total">0</span><small>CLICKS</small></div>
+    <div class="instr" id="instr"></div>
+    <div id="stage"><div class="combo" id="combo"></div></div>
+    <div class="hint" id="hint"></div>
+  </section>
+
+  <div id="flash"></div>
+  <div id="board"><div class="in">
+    <h2 id="bTitle">Leaderboard</h2>
+    <div class="brk" id="bResult" style="display:none"></div>
+    <div class="nameRow" id="bForm" style="display:none"><input id="nameIn" maxlength="12" placeholder="Your name" autocomplete="off"><button class="btn" id="saveBtn">Save score</button></div>
+    <ol id="bList"></ol>
+    <div class="brow"><button class="btn" id="againBtn" style="display:none">Play again</button><button class="btn ghost" id="closeBtn">Close</button></div>
+  </div></div>
+  <div id="unlock">
+    <div style="font-size:15px;letter-spacing:2px;opacity:.8">NEW THOCKIE UNLOCKED</div>
+    <img id="unlockImg" alt="">
+    <h2 id="unlockName"></h2>
+    <p id="unlockMsg">It joins the row!</p>
+    <button class="btn" id="unlockOk">Nice!</button>
+  </div>
+</div>
+
+<div id="zoomfix" role="button">🔍 Screen is zoomed — tap to fix</div>
+<script>
+(() => {
+  const STAGES = [50, 75, 100, 100, 100, 100];   // clicks per stage: stage i unlocks character i+2; the last stage is the finale with all 6
+  const CUM = STAGES.reduce((a, v) => (a.push((a.length ? a[a.length - 1] : 0) + v), a), []);   // cumulative: 50,125,225,325,425,525
+  const stageStart = n => n >= 2 ? CUM[n - 2] : 0;                // total clicks at which the current stage began
+  const CHARS = [
+    { id:'bloop',  name:'Bloop',  color:'#4aa3ff' },
+    { id:'pip',    name:'Pip',    color:'#ffd34d' },
+    { id:'nini',   name:'Nini',   color:'#ff8fc1' },
+    { id:'grumbo', name:'Grumbo', color:'#58d68d' },
+    { id:'zap',    name:'Zap',    color:'#ff9a3d' },
+    { id:'luna',   name:'Luna',   color:'#a37bff' },
+  ];
+  const STARTERS = 3;
+
+  // ---------- art: real PNG from assets/, fallback to a drawn keycap ----------
+  function fallbackSvg(c) {
+    const s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+      <rect x="22" y="38" width="156" height="128" rx="34" fill="${c.color}" stroke="rgba(0,0,0,.35)" stroke-width="5"/>
+      <rect x="36" y="48" width="128" height="86" rx="26" fill="rgba(255,255,255,.28)"/>
+      <circle cx="76" cy="94" r="11" fill="#1a1030"/><circle cx="124" cy="94" r="11" fill="#1a1030"/>
+      <circle cx="79" cy="90" r="4" fill="#fff"/><circle cx="127" cy="90" r="4" fill="#fff"/>
+      <path d="M82 118 Q100 134 118 118" stroke="#1a1030" stroke-width="6" fill="none" stroke-linecap="round"/>
+      <circle cx="56" cy="114" r="8" fill="rgba(255,120,160,.6)"/><circle cx="144" cy="114" r="8" fill="rgba(255,120,160,.6)"/></svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(s);
+  }
+  const src = {};
+  CHARS.forEach(c => {
+    src[c.id] = fallbackSvg(c);
+    const im = new Image();
+    im.onload = () => { src[c.id] = im.src; document.querySelectorAll('img[data-c="'+c.id+'"]').forEach(e => e.src = im.src); };
+    im.src = 'assets/' + c.id + '.png';
+  });
+  const imgTag = (id, cls) => `<img data-c="${id}" src="${src[id]}" alt="" ${cls ? 'class="'+cls+'"' : ''}>`;
+
+  // ---------- audio: mp3 samples if present, otherwise synthesized click ----------
+  let ctx = null, muted = false; const buf = {};
+  function ac() { if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } if (ctx && ctx.state === 'suspended') ctx.resume(); return ctx; }
+  async function load(name) {
+    try { const r = await fetch('assets/' + name + '.mp3'); if (!r.ok) return; const a = await r.arrayBuffer(); const c = ac(); if (!c) return; buf[name] = await c.decodeAudioData(a); } catch(e){}
+  }
+  ['click1','click2','click3','unlock','snap'].forEach(n => { window.addEventListener('pointerdown', function once(){ load(n); }, { once:true }); });
+  function play(name, rate = 1, vol = 1) {
+    if (muted) return; const c = ac(); if (!c) return;
+    if (buf[name]) { const s = c.createBufferSource(), g = c.createGain(); s.buffer = buf[name]; s.playbackRate.value = rate; g.gain.value = vol; s.connect(g).connect(c.destination); s.start(); return; }
+    // synth fallback
+    const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+    o.type = name === 'unlock' ? 'triangle' : 'square';
+    o.frequency.setValueAtTime((name === 'unlock' ? 660 : name === 'snap' ? 300 : 180) * rate, t);
+    o.frequency.exponentialRampToValueAtTime((name === 'unlock' ? 1320 : 60) * rate, t + (name === 'unlock' ? .35 : .07));
+    g.gain.setValueAtTime(.25 * vol, t); g.gain.exponentialRampToValueAtTime(.001, t + (name === 'unlock' ? .5 : .09));
+    o.connect(g).connect(c.destination); o.start(t); o.stop(t + .55);
+  }
+  const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch(e){} };
+
+  // ---------- rules ----------
+  const BASE_PTS = 10;          // points per click
+  const SLOW_MS = 1500;         // no click for this long = penalty
+  const PEN_CLICKS = 10;        // clicks lost per penalty
+  const PEN_PTS = 100;          // points lost per penalty
+  const PAR_SEC = 150;          // finish faster than this for a time bonus
+  const TIME_PTS = 20;          // bonus points per second under par
+  const COMBO_PTS = 5;          // SET combo: every different Thockie added to your current set pays 5 x set size
+  const SET_PTS = 20;           // completing the full set (all Thockies, no repeats) pays 20 x number of Thockies
+  const SET_MS = 1200;          // set breaks after 1.2s without a tap (or when you tap one that's already in the set)
+
+  function bad() {
+    if (muted) return; const c = ac(); if (!c) return; const t = c.currentTime, o = c.createOscillator(), g = c.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(160, t); o.frequency.exponentialRampToValueAtTime(55, t + .35);
+    g.gain.setValueAtTime(.22, t); g.gain.exponentialRampToValueAtTime(.001, t + .4); o.connect(g).connect(c.destination); o.start(t); o.stop(t + .42);
+  }
+
+  // ---------- state ----------
+  const KEY = 'thockies.v2', LBKEY = 'thockies.lb.v1';
+  const fresh = () => ({ started:false, unlocked:[], active:[], total:0, per:{}, clickPts:0, comboPts:0, penPts:0, penalties:0, maxChain:0, sets:0, elapsed:0, finished:false, saved:false, timeBonus:0 });
+  let S = fresh();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e){} }
+  function loadS() { try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && j.started) S = Object.assign(fresh(), j); } catch(e){} }
+  const $ = id => document.getElementById(id);
+  const nextLockedIdx = () => CHARS.findIndex(c => !S.unlocked.includes(c.id));
+  const score = () => Math.max(0, S.clickPts + S.comboPts + S.timeBonus - S.penPts);
+  const fmtT = ms => { const t = Math.floor(ms / 100), m = Math.floor(t / 600), sec = Math.floor((t % 600) / 10); return m + ':' + String(sec).padStart(2, '0') + '.' + (t % 10); };
+  const fmtN = n => n.toLocaleString('en-US');
+
+  // leaderboard (stored on this device)
+  let memLB = [];
+  const getLB = () => { try { return JSON.parse(localStorage.getItem(LBKEY) || '[]'); } catch(e) { return memLB; } };
+  const putLB = a => { memLB = a; try { localStorage.setItem(LBKEY, JSON.stringify(a)); } catch(e){} };
+
+  // ---------- clock + slow-click watcher ----------
+  let running = false, lastClickT = 0, lastTick = performance.now();
+  const paused = () => document.hidden || $('unlock').classList.contains('on') || $('board').classList.contains('on') || S.finished;
+  setInterval(() => {
+    const now = performance.now(), dt = now - lastTick; lastTick = now;
+    if (!S.started || !running || paused()) { lastClickT += paused() ? dt : 0; return; }
+    S.elapsed += dt; $('time').textContent = fmtT(S.elapsed);
+    const idle = now - lastClickT, left = Math.max(0, 1 - idle / SLOW_MS);
+    $('spdFill').style.width = (left * 100) + '%'; $('spd').classList.toggle('low', left < .35);
+    if (idle >= SLOW_MS) { slowPenalty(); lastClickT = now; }
+  }, 50);
+
+  function slowPenalty() {
+    const n = S.unlocked.length, floor = stageStart(n), lost = Math.min(PEN_CLICKS, Math.max(0, S.total - floor));
+    S.total -= lost; S.penPts += PEN_PTS; S.penalties++; resetSet();
+    bad(); buzz([60, 40, 60]);
+    const f = $('flash'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+    const t = document.createElement('div'); t.className = 'slow'; t.innerHTML = 'TOO SLOW!<br><span style="font-size:22px">' + (lost ? '−' + lost + ' clicks  ' : '') + '−' + PEN_PTS + ' pts</span>';
+    document.body.appendChild(t); setTimeout(() => t.remove(), 1000);
+    $('app').classList.add('shake'); setTimeout(() => $('app').classList.remove('shake'), 400);
+    renderHud(); save();
+  }
+
+  // ---------- pick screen ----------
+  let pick = null;
+  function renderPick() {
+    $('startGrid').innerHTML = CHARS.slice(0, STARTERS).map(c =>
+      `<div class="card" data-id="${c.id}">${imgTag(c.id)}<div class="nm">${c.name}</div></div>`).join('');
+    $('lockGrid').innerHTML = CHARS.slice(STARTERS).map((c, i) =>
+      `<div class="card locked">${imgTag(c.id)}<div class="nm">???</div><div class="lockrow">🔒 ${STAGES[i+2]} clicks</div></div>`).join('');
+    $('startGrid').querySelectorAll('.card').forEach(el => el.addEventListener('click', () => {
+      pick = el.dataset.id; play('snap', 1.2, .6); buzz(10);
+      $('startGrid').querySelectorAll('.card').forEach(x => x.classList.toggle('sel', x === el));
+      $('goBtn').disabled = false;
+    }));
+  }
+  $('goBtn').addEventListener('click', () => {
+    if (!pick) return; ac();
+    S = fresh(); S.started = true; S.unlocked = [pick]; running = false; setIds.clear();
+    save(); showPlay();
+  });
+
+  // ---------- play screen ----------
+  function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); }
+  function showPlay() { show('sPlay'); renderStage(); renderHud(); $('time').textContent = fmtT(S.elapsed); $('spdFill').style.width = '100%'; }
+
+  function renderHud() {
+    const t = $('total'); t.textContent = S.total; t.classList.remove('bump'); void t.offsetWidth; t.classList.add('bump');
+    $('score').textContent = fmtN(score());
+    const n = S.unlocked.length, nb = document.querySelector('.nextbox'), size = STAGES[n - 1], prog = Math.max(0, Math.min(size, S.total - stageStart(n)));
+    $('barFill').style.width = (prog / size * 100) + '%';
+    const slow = `don't stop for ${(SLOW_MS/1000).toFixed(1)}s or you lose ${PEN_CLICKS} clicks!`;
+    if (n >= CHARS.length) {
+      nb.classList.add('final'); nb.classList.remove('done');
+      $('goal').innerHTML = '🏁 Final round<br><span>All 6 Thockies are here!</span>';
+      $('barLbl').textContent = `${prog} / ${size} clicks to finish`;
+      $('instr').textContent = `🏁 Final round! Click ${size} more times with all 6 — ${slow}`;
+      return;
+    }
+    const nxt = CHARS[nextLockedIdx()]; nb.classList.remove('final', 'done');
+    $('goal').innerHTML = `🎯 Goal: collect all 6 Thockies<br><span>${n} / 6 unlocked</span>`;
+    $('nextImg').src = src[nxt.id]; $('nextImg').dataset.c = nxt.id;
+    $('barLbl').textContent = `${prog} / ${size} clicks → unlocks ${nxt.name}`;
+    $('instr').textContent = `👆 Click ${size} times to unlock ${nxt.name} — ${slow}`;
+  }
+  // ---------- stage: every unlocked Thockie sits in one grid ----------
+  const gridFor = n => { const cols = n <= 3 ? n : n === 4 ? 2 : 3; return { cols, rows: Math.ceil(n / cols) }; };
+  const posOf = i => { const { cols } = gridFor(S.unlocked.length); return { c: i % cols, r: Math.floor(i / cols) }; };
+  const setIds = new Set(); let chainT = null;
+  function resetSet() { setIds.clear(); $('combo').classList.remove('on'); updateBadges(); }
+
+  function renderStage() {
+    const st = $('stage'), n = S.unlocked.length, { cols, rows } = gridFor(n);
+    st.querySelectorAll('.key').forEach(e => e.remove());
+    st.style.gridTemplateColumns = n === 1 ? 'minmax(0,300px)' : `repeat(${cols}, minmax(0,1fr))`;
+    st.style.gridTemplateRows = `repeat(${rows}, minmax(0,1fr))`;
+    S.unlocked.forEach((id, i) => {
+      const k = document.createElement('div'); k.className = 'key'; k.dataset.id = id; k.dataset.i = i; k.innerHTML = imgTag(id);
+      k.addEventListener('pointerdown', e => { e.preventDefault(); press(k, e); });
+      const up = () => k.classList.remove('down');
+      k.addEventListener('pointerup', up); k.addEventListener('pointerleave', up); k.addEventListener('pointercancel', up);
+      st.appendChild(k);
+    });
+    setIds.clear(); $('combo').classList.remove('on'); updateBadges(); renderHint();
+    const ks = st.querySelectorAll('.key'); if (n > 1) ks[n - 1].animate([{ transform:'scale(0) rotate(-25deg)' }, { transform:'scale(1.15)' }, { transform:'none' }], { duration:450, easing:'ease-out' });
+  }
+  // badges: Thockies already in your set show a tick; the others show the combo points you'd get by tapping them next (gold = completes the set)
+  function updateBadges() {
+    const ks = document.querySelectorAll('#stage .key'), n = ks.length, sz = setIds.size;
+    ks.forEach(k => { const old = k.querySelector('.badge'); if (old) old.remove(); });
+    if (!sz || n < 2) return;
+    ks.forEach((k, j) => {
+      const bd = document.createElement('div');
+      if (setIds.has(j)) { bd.className = 'badge got'; bd.textContent = '✓'; }
+      else { const last = sz + 1 === n; bd.className = 'badge' + (last ? ' best' : ''); bd.textContent = '+' + (COMBO_PTS * (sz + 1) + (last ? SET_PTS * n : 0)); }
+      k.appendChild(bd);
+    });
+  }
+  function renderHint() {
+    const n = S.unlocked.length;
+    $('hint').textContent = n < 2 ? `Keep clicking — a friend joins you at ${STAGES[0]} clicks!` : '🔥 Tap EVERY Thockie once, in any order, before repeating — each new one pays more, and a full set pays a big bonus!';
+  }
+
+  // ---------- anti-zoom / anti-freeze guards ----------
+  // Two-finger play looks like a pinch to the browser, which zooms the page and swallows taps. Block every browser gesture on the game.
+  (function guards() {
+    const stop = e => { if (e.cancelable) e.preventDefault(); };
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, stop, { passive:false }));   // iOS Safari pinch
+    const inBoard = e => e.target.closest && e.target.closest('#board');
+    ['touchstart', 'touchmove'].forEach(t => document.addEventListener(t, e => {
+      if (inBoard(e) || (e.target.tagName === 'INPUT') || (e.target.id === 'zoomfix')) return;
+      if (e.touches.length > 1 || t === 'touchmove') stop(e);                                                         // multi-finger or drag: never let the browser handle it
+    }, { passive:false }));
+    ['dblclick', 'contextmenu', 'dragstart', 'selectstart'].forEach(t => document.addEventListener(t, e => { if (e.target.tagName !== 'INPUT') stop(e); }));
+    document.addEventListener('wheel', e => { if (e.ctrlKey) stop(e); }, { passive:false });                         // desktop pinch / ctrl+scroll zoom
+    // safety net: if the page ever does end up zoomed, show a one-tap fix instead of a dead game
+    const vv = window.visualViewport, zf = document.getElementById('zoomfix');
+    const check = () => { if (vv) zf.classList.toggle('on', vv.scale > 1.02); };
+    if (vv) { vv.addEventListener('resize', check); vv.addEventListener('scroll', check); }
+    const reset = e => {
+      stop(e); const m = document.querySelector('meta[name=viewport]');
+      m.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no');
+      window.scrollTo(0, 0); setTimeout(check, 150);
+    };
+    zf.addEventListener('click', reset); zf.addEventListener('touchend', reset, { passive:false });
+    // taps that get cancelled by the system must never leave a key stuck down
+    window.addEventListener('blur', () => document.querySelectorAll('.key.down').forEach(k => k.classList.remove('down')));
+  })();
+
+  // ---------- clicking ----------
+  function press(k, e) {
+    if (S.finished || paused()) return;
+    ac(); k.classList.add('down');
+    const id = k.dataset.id, pos = +k.dataset.i, n = S.unlocked.length, now = performance.now();
+    if (!running) { running = true; lastTick = now; }
+    lastClickT = now;
+    let comboBonus = 0, setDone = false;
+    if (n >= 2) {
+      if (setIds.has(pos)) setIds.clear();            // tapping one that's already in the set starts a new set
+      setIds.add(pos);
+      const sz = setIds.size, c = $('combo');
+      if (sz >= 2) { comboBonus = COMBO_PTS * sz; S.maxChain = Math.max(S.maxChain, sz); }
+      if (sz === n) { comboBonus += SET_PTS * n; setDone = true; S.sets = (S.sets || 0) + 1; c.textContent = '⭐ FULL SET! +' + SET_PTS * n; c.classList.add('on'); setIds.clear(); }
+      else if (sz >= 2) { c.textContent = `SET ${sz}/${n}`; c.classList.add('on'); }
+      else c.classList.remove('on');
+      clearTimeout(chainT); chainT = setTimeout(resetSet, SET_MS);
+      updateBadges();
+    }
+    S.total++; S.per[id] = (S.per[id] || 0) + 1; S.clickPts += BASE_PTS; S.comboPts += comboBonus;
+    play(['click1', 'click2', 'click3'][Math.floor(Math.random() * 3)], 0.93 + Math.random() * 0.14 + (setDone ? 6 : setIds.size) * 0.012);
+    buzz(8);
+    fx(e.clientX, e.clientY, comboBonus ? '+' + (BASE_PTS + comboBonus) + (setDone ? ' ⭐' : ' 🔥') : '+' + BASE_PTS); burst(e.clientX, e.clientY, CHARS.find(c => c.id === id).color);
+    renderHud();
+    const u = S.unlocked.length;
+    if (u < CHARS.length && S.total >= CUM[u - 1]) unlockNext();
+    else if (u >= CHARS.length && S.total >= CUM[CHARS.length - 1]) finishGame();
+    if (S.total % 10 === 0) save();
+  }
+  function fx(x, y, t) { const d = document.createElement('div'); d.className = 'fx'; d.textContent = t; d.style.left = (x - 10 + (Math.random() * 30 - 15)) + 'px'; d.style.top = (y - 30) + 'px'; document.body.appendChild(d); setTimeout(() => d.remove(), 800); }
+  function burst(x, y, color) {
+    if (document.querySelectorAll('.pt').length > 60) return;     // fast two-finger tapping: keep the page light
+    for (let i = 0; i < 7; i++) {
+      const p = document.createElement('div'); p.className = 'pt'; p.style.background = i % 2 ? color : '#fff'; p.style.left = x + 'px'; p.style.top = y + 'px'; document.body.appendChild(p);
+      const a = Math.random() * Math.PI * 2, d = 40 + Math.random() * 60;
+      p.animate([{ transform:'translate(0,0) scale(1)', opacity:1 }, { transform:`translate(${Math.cos(a) * d}px,${Math.sin(a) * d}px) scale(.2)`, opacity:0 }], { duration:450 + Math.random() * 200, easing:'ease-out' }).onfinish = () => p.remove();
+    }
+  }
+
+  function unlockNext() {
+    const i = nextLockedIdx(); if (i < 0) return; const c = CHARS[i];
+    S.unlocked.push(c.id); save();
+    const all = S.unlocked.length >= CHARS.length;
+    $('unlockImg').src = src[c.id]; $('unlockImg').dataset.c = c.id; $('unlockName').textContent = c.name;
+    $('unlockMsg').textContent = all ? `All 6 Thockies are here! Final round: ${STAGES[5]} more clicks with everybody. Tap all 6 before repeating for big set bonuses!` : 'It joins the row! Now tap every Thockie once before repeating — a full set pays a big bonus!';
+    $('unlockOk').textContent = all ? "Let's go!" : 'Nice!';
+    $('unlock').classList.add('on'); play('unlock', 1, 1); buzz([30, 40, 30, 40, 60]);
+    $('app').classList.add('shake'); setTimeout(() => $('app').classList.remove('shake'), 400);
+    renderHud();
+  }
+  function finishGame() {
+    S.finished = true; running = false; S.timeBonus = Math.max(0, Math.round((PAR_SEC * 1000 - S.elapsed) / 1000)) * TIME_PTS; save();
+    play('unlock', 1, 1); buzz([30, 40, 30, 40, 60]); $('app').classList.add('shake'); setTimeout(() => $('app').classList.remove('shake'), 400);
+    setTimeout(() => openBoard(true), 450);
+  }
+  $('unlockOk').addEventListener('click', () => { $('unlock').classList.remove('on'); lastClickT = performance.now(); renderStage(); });
+
+  // ---------- leaderboard ----------
+  let myEntry = null;
+  function renderList() {
+    const ol = $('bList'); ol.innerHTML = ''; const lb = getLB();
+    if (!lb.length) { const d = document.createElement('div'); d.className = 'empty'; d.textContent = 'No scores yet — be the first!'; ol.appendChild(d); return; }
+    lb.slice(0, 10).forEach((r, i) => {
+      const li = document.createElement('li'); if (myEntry && r.id === myEntry) li.className = 'me';
+      [['rk', (i + 1) + '.'], ['nm', r.name], ['tm', fmtT(r.ms)], ['sc', fmtN(r.score)]].forEach(([c, t]) => { const sp = document.createElement('span'); sp.className = c; sp.textContent = t; li.appendChild(sp); });
+      ol.appendChild(li);
+    });
+  }
+  function openBoard(finished) {
+    $('bTitle').textContent = finished ? '🏁 Finished!' : '🏆 Leaderboard';
+    $('bResult').style.display = finished ? 'block' : 'none';
+    $('bForm').style.display = finished && !S.saved ? 'flex' : 'none';
+    $('againBtn').style.display = finished ? 'inline-block' : 'none';
+    $('closeBtn').style.display = finished ? 'none' : 'inline-block';
+    if (finished) {
+      const row = (a, b) => `<div><span>${a}</span><span>${b}</span></div>`;
+      $('bResult').innerHTML = row('Time', fmtT(S.elapsed)) + row('Clicks (×' + BASE_PTS + ')', '+' + fmtN(S.clickPts)) + row('Combos (' + (S.sets || 0) + ' full sets)', '+' + fmtN(S.comboPts)) +
+        row('Finish bonus (under ' + PAR_SEC + 's)', '+' + fmtN(S.timeBonus)) + row('Too slow ×' + S.penalties, '−' + fmtN(S.penPts)) + `<div class="tot"><span>Total</span><span>${fmtN(score())}</span></div>`;
+    }
+    renderList(); $('board').classList.add('on');
+    if (finished && !S.saved) setTimeout(() => { try { $('nameIn').focus(); } catch(e){} }, 100);
+  }
+  function submitScore() {
+    if (S.saved) return;
+    const name = ($('nameIn').value || '').trim().slice(0, 12) || 'Player';
+    myEntry = Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+    const lb = getLB(); lb.push({ id:myEntry, name, score:score(), ms:Math.round(S.elapsed), date:Date.now() });
+    lb.sort((a, b) => b.score - a.score || a.ms - b.ms); putLB(lb.slice(0, 50));
+    S.saved = true; save(); $('bForm').style.display = 'none'; renderList(); play('unlock', 1.1, .8); buzz([20, 30, 20]);
+  }
+  $('saveBtn').addEventListener('click', submitScore);
+  $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') submitScore(); });
+  $('closeBtn').addEventListener('click', () => { $('board').classList.remove('on'); lastClickT = performance.now(); });
+  $('againBtn').addEventListener('click', () => { $('board').classList.remove('on'); S = fresh(); save(); running = false; pick = null; $('goBtn').disabled = true; renderPick(); show('sPick'); });
+  $('lbBtn').addEventListener('click', () => openBoard(false));
+  $('lbBtn2').addEventListener('click', () => openBoard(false));
+
+  $('soundBtn').addEventListener('click', () => { muted = !muted; $('soundBtn').textContent = muted ? '🔇' : '🔊'; });
+  let rs = null;
+  $('resetBtn').addEventListener('click', () => {
+    if (!rs) { $('resetBtn').textContent = 'Sure?'; rs = setTimeout(() => { rs = null; $('resetBtn').textContent = 'Reset'; }, 2500); return; }
+    clearTimeout(rs); rs = null; $('resetBtn').textContent = 'Reset';
+    S = fresh(); save(); running = false; pick = null; $('goBtn').disabled = true; renderPick(); show('sPick');
+  });
+
+  // test hook (dev only)
+  window.__thockies = { get state() { return S; }, press: id => { const k = document.querySelector('.key[data-id="' + id + '"]'); if (k) press(k, { clientX:200, clientY:300 }); } };
+
+  loadS(); renderPick();
+  if (S.started) { showPlay(); if (S.finished) openBoard(true); }
+})();
+</script>
+</body>
+</html>
