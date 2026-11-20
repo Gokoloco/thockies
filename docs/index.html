@@ -34,6 +34,9 @@
   .btn:active { transform:translateY(4px); box-shadow:0 1px 0 #b88a00; }
   .btn[disabled] { opacity:.4; }
   .btn.ghost { background:rgba(255,255,255,.12); color:#fff; box-shadow:0 5px 0 rgba(0,0,0,.35); font-size:15px; padding:10px 16px; }
+  .btn.wa { background:#25D366; color:#053b1c; box-shadow:0 5px 0 #138a44; }
+  .btn.wa:active { box-shadow:0 1px 0 #138a44; }
+  .shareRow { display:flex; justify-content:center; margin:0 0 14px; }
   .center { margin:auto 0 24px; display:flex; flex-direction:column; align-items:center; gap:12px; }
   /* play */
   .top { display:flex; justify-content:space-between; align-items:center; padding-top:12px; gap:8px; }
@@ -166,6 +169,7 @@
   <div id="board"><div class="in">
     <h2 id="bTitle">Leaderboard</h2>
     <div class="brk" id="bResult" style="display:none"></div>
+    <div class="shareRow" id="shareRow" style="display:none"><button class="btn wa" id="shareBtn">💬 Share my score</button></div>
     <div class="nameRow" id="bForm" style="display:none"><input id="nameIn" maxlength="12" placeholder="Nickname" autocomplete="off"><button class="btn" id="saveBtn">Save score</button></div>
     <div class="note" id="nameErr"></div>
     <div class="tabs"><button class="tab on" id="tabW">🌍 Worldwide</button><button class="tab" id="tabL">📱 My device</button></div>
@@ -508,6 +512,7 @@
     $('bResult').style.display = finished ? 'block' : 'none';
     $('bForm').style.display = finished && !S.saved ? 'flex' : 'none';
     $('nameErr').textContent = '';
+    $('shareRow').style.display = finished ? 'flex' : 'none';
     $('againBtn').style.display = finished ? 'inline-block' : 'none';
     $('closeBtn').style.display = finished ? 'none' : 'inline-block';
     if (finished) {
@@ -535,6 +540,14 @@
     } catch (e) { postFailed = true; }
     submitting = false; tab = 'w'; loadWorld();
   }
+  // share to WhatsApp: opens a pre-written message with the score and the game link
+  const GAME_URL = 'https://gokoloco.github.io/thockies/';
+  $('shareBtn').addEventListener('click', () => {
+    const msg = `🎮 I scored ${fmtN(score())} points in Thockies, in ${fmtT(S.elapsed)}! Can you beat me? ${GAME_URL}`;
+    const url = 'https://wa.me/?text=' + encodeURIComponent(msg);
+    const w = window.open(url, '_blank', 'noopener');
+    if (!w) location.href = url;
+  });
   $('saveBtn').addEventListener('click', submitScore);
   $('nameIn').addEventListener('keydown', e => { if (e.key === 'Enter') submitScore(); });
   $('closeBtn').addEventListener('click', () => { $('board').classList.remove('on'); lastClickT = performance.now(); });
