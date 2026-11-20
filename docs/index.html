@@ -268,7 +268,7 @@
   const $ = id => document.getElementById(id);
   const nextLockedIdx = () => CHARS.findIndex(c => !S.unlocked.includes(c.id));
   const score = () => Math.max(0, S.clickPts + S.comboPts + S.timeBonus - S.penPts);
-  const fmtT = ms => { const t = Math.floor(ms / 100), m = Math.floor(t / 600), sec = Math.floor((t % 600) / 10); return m + ':' + String(sec).padStart(2, '0') + '.' + (t % 10); };
+  const fmtT = ms => { const t = Math.floor(ms / 100), h = Math.floor(t / 36000), m = Math.floor((t % 36000) / 600), sec = Math.floor((t % 600) / 10); return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sec).padStart(2, '0') + (t < 6000 ? '.' + (t % 10) : ''); }; // tenths only under 10 min; hours past 60 min
   const fmtN = n => n.toLocaleString('en-US');
 
   // leaderboard (stored on this device)
@@ -277,11 +277,16 @@
   const putLB = a => { memLB = a; try { localStorage.setItem(LBKEY, JSON.stringify(a)); } catch(e){} };
 
   // ---------- clock + slow-click watcher ----------
-  let running = false, lastClickT = 0, lastTick = performance.now();
+  const IDLE_PAUSE_MS = 10000;  // no tap for this long = clock stops until the next tap
+  let running = false, lastClickT = 0, lastTapT = 0, idlePaused = false, lastTick = performance.now();
   const paused = () => document.hidden || $('unlock').classList.contains('on') || $('board').classList.contains('on') || S.finished;
   setInterval(() => {
     const now = performance.now(), dt = now - lastTick; lastTick = now;
-    if (!S.started || !running || paused()) { lastClickT += paused() ? dt : 0; return; }
+    // a huge gap means the phone/tab was asleep or throttled: don't count it as play time
+    if (dt > 1000) { lastClickT += dt; lastTapT += dt; return; }
+    if (!S.started || !running || paused()) { if (paused()) { lastClickT += dt; lastTapT += dt; } return; }
+    if (idlePaused) return;
+    if (now - lastTapT >= IDLE_PAUSE_MS) { idlePaused = true; S.elapsed = Math.max(0, S.elapsed - IDLE_PAUSE_MS); $('time').textContent = fmtT(S.elapsed) + ' ⏸'; $('spdFill').style.width = '0%'; return; }
     S.elapsed += dt; $('time').textContent = fmtT(S.elapsed);
     const idle = now - lastClickT, left = Math.max(0, 1 - idle / SLOW_MS);
     $('spdFill').style.width = (left * 100) + '%'; $('spd').classList.toggle('low', left < .35);
@@ -411,7 +416,7 @@
     ac(); k.classList.add('down');
     const id = k.dataset.id, pos = +k.dataset.i, n = S.unlocked.length, now = performance.now();
     if (!running) { running = true; lastTick = now; }
-    lastClickT = now;
+    lastClickT = now; lastTapT = now; idlePaused = false;
     let comboBonus = 0, setDone = false;
     if (n >= 2) {
       if (setIds.has(pos)) setIds.clear();            // tapping one that's already in the set starts a new set
