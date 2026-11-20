@@ -1,0 +1,20 @@
+name: Keep Supabase awake
+
+# Supabase pauses free projects after a week without activity.
+# This reads one row twice a week so the Thockies leaderboard stays online.
+on:
+  schedule:
+    - cron: '17 6 * * 1,4'   # Mondays and Thursdays, 06:17 UTC
+  workflow_dispatch:          # lets you run it by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read one score
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'apikey: sb_publishable_K8AOUDg08X2GibAZOcjAnw_TZizdRT9' \
+            'https://xcucumkayywwmodngeoy.supabase.co/rest/v1/scores?select=id&limit=1')
+          echo "Supabase answered: $code"
+          [ "$code" = "200" ]
